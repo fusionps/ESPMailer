@@ -187,7 +187,7 @@ boolean ESPMailer::HeaderTo(const char* type, char* arr, char* nameArr) {
 	char* tok = strtok(arr, _delim);
 	char* nameTok = strtok(nameArr, _delim);
 	while (tok != NULL) {
-		if (strcmp(nameTok, "\r"))
+		if (strcmp(nameTok, "\r") == 0)
 			_smtp.printf("%s: <%s>\r\n", type, tok);
 		else
 			_smtp.printf("%s: \"%s\" <%s>\r\n", type, nameTok, tok);
@@ -198,11 +198,9 @@ boolean ESPMailer::HeaderTo(const char* type, char* arr, char* nameArr) {
 
 boolean ESPMailer::send() {
 	if (TLS) {
-		_smtp = WiFiClientSecure();
+		_smtp = WiFiClient();
 	}
 
-	NTP ntp = NTP();
-	ntp.begin();
 	
 	char* buf = (char*)malloc(100);
 	if (!_smtp.connect(Host.c_str(), Port)) {
@@ -279,23 +277,23 @@ boolean ESPMailer::send() {
 	
 	if (!sendCMD("DATA",354)) return false;
 
-	time_t tm = ntp.get(_timezone);
+	// time_t tm = ntp->get();
 	//must be separated due to pointer overload
-	_smtp.printf("Date: %s, ",
-		dayShortStr(weekday(tm))
-	);
-	_smtp.printf("%02d %s %04d %02d:%02d:%02d %+03d%02d\r\n",
-		day(tm),
-		monthShortStr(month(tm)),
-		year(tm),
-		hour(tm),
-		minute(tm),
-		second(tm),
-		(int)(_timezone),
-		floor(_timezone) == _timezone ? 0 : 30
-	);
+	// _smtp.printf("Date: %s, ",
+	// 	dayShortStr(weekday(tm))
+	// );
+	// _smtp.printf("%02d %s %04d %02d:%02d:%02d %+03d%02d\r\n",
+	// 	// day(tm),
+	// 	// monthShortStr(month(tm)),
+	// 	// year(tm),
+	// 	// hour(tm),
+	// 	// minute(tm),
+	// 	// second(tm),
+	// 	// (int)(_timezone),
+	// 	// floor(_timezone) == _timezone ? 0 : 30
+	// );
 	
-	_smtp.printf("Message-Id: <%ld%ld@%s>\r\n", ESP.getChipId(),ESP.getCycleCount(), Host.c_str());
+	// _smtp.printf("Message-Id: <%ld%ld@%s>\r\n", ESP.getChipId(),ESP.getCycleCount(), Host.c_str());
 	_smtp.println("X-Mailer: ESPMailer v2.0 (http://github.com/ArduinoHannover/ESPMailer)");
 	_smtp.printf("Subject: %s\r\n", Subject.c_str());
 	if (_fromName != NULL)

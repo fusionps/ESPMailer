@@ -1,9 +1,11 @@
-#include <ESP8266WiFi.h>
-#include <Time.h>
-#include <NTP.h>
-#ifndef NTP_H
-#error "You haven't installed the ESP-NTP Library. It can be downloaded from http://github.com/ArduinoHannover/NTP"
-#endif
+// #include <ESP8266WiFi.h>
+#include <WiFi.h>
+// #include <Time.h>
+#include <NTPClient.h>
+// #include <NTP.h>
+// #ifndef NTP_H
+// #error "You haven't installed the ESP-NTP Library. It can be downloaded from http://github.com/ArduinoHannover/NTP"
+// #endif
 
 #ifndef MAIL_H
 #define MAIL_H
@@ -78,5 +80,7 @@ class ESPMailer {
 		AUTH AuthType = PLAIN;
 		
 		boolean TLS = false;
+
+		NTPClient *ntp;
 };
 #endif
