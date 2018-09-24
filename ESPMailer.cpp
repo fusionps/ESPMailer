@@ -1,4 +1,15 @@
 #include "ESPMailer.h"
+#include <time.h>
+
+const char *days[7] = {
+	"Sunday",
+	"Monday",
+	"Tuesday",
+	"Wednesday",
+	"Thursday",
+	"Friday",
+	"Saturday"
+};
 
 ESPMailer::ESPMailer() {
 }
@@ -91,6 +102,11 @@ boolean ESPMailer::sendCMD(const char* cmd, uint16_t code) {
 	Serial.write('>');
 	Serial.println(cmd);
 	Serial.println(last_reply);
+	Serial.println("Left in buffer:");
+	while(_smtp.available()){
+		Serial.write(_smtp.read());
+	}
+	Serial.println();
 	return false;
 }
 
@@ -172,7 +188,7 @@ boolean ESPMailer::isHTML(boolean h) {
 }
 
 boolean ESPMailer::SMTPTo(char* arr) {
-	char* buf = (char*)malloc(100);
+	char buf[100];
 	char* tok = strtok(arr, _delim);
 	while (tok != NULL) {
 		Serial.println(tok);
@@ -181,7 +197,7 @@ boolean ESPMailer::SMTPTo(char* arr) {
 		if (!sendCMD(buf, 250)) return false;
 		tok = strtok(NULL, _delim);
 	}
-	free(buf);
+	// free(buf);
 }
 boolean ESPMailer::HeaderTo(const char* type, char* arr, char* nameArr) {
 	char* tok = strtok(arr, _delim);
@@ -196,105 +212,97 @@ boolean ESPMailer::HeaderTo(const char* type, char* arr, char* nameArr) {
 	}
 }
 
-boolean ESPMailer::send() {
+SMTP_ERROR ESPMailer::send() {
 	if (TLS) {
-		_smtp = WiFiClient();
+		// _smtp = WiFiClient();
 	}
-
 	
-	char* buf = (char*)malloc(100);
+	char buf[100];Serial.println(String("Attempting to connect to: ") + String(Host) + String(Port));
+	_smtp.setTimeout(1000);
 	if (!_smtp.connect(Host.c_str(), Port)) {
 		if (do_debug >= 0) {
 			Serial.println("No connection to server!");
 			Serial.println(Host);
 			Serial.println(Port);
 		}
-		return false;
+		return SMTP_ERROR_TCP_FAIL;
 	}
-	if (!sendCMD(NULL,220)) return false;
+	// if (!sendCMD(NULL,220)) return SMTP_ERROR_SENDING_FAIL;
+	(sendCMD(NULL,220));
+
 	
 	sprintf(buf, "HELO %s", Host.c_str());
-	if (!sendCMD(buf,250)) return false;
+	// sprintf(buf, "HELO SG2PR04CA0181.apcprd04.prod.outlook.com");
+
+	if (!sendCMD(buf,250)) return SMTP_ERROR_SENDING_FAIL;
 	
 	//Does not work - for now.
 	if (TLS) {
 		if (sendCMD("STARTTLS",220)) {
 			//Handshake needed here.
 			if (!sendCMD(buf,250)) {
-				return false; //resend HELO
+				return SMTP_ERROR_SENDING_FAIL; //resend HELO
 			}
 		} else {
-			return false;
+			return SMTP_ERROR_SENDING_FAIL;
 		}
 	}
 	
 	if (SMTPAuth) {
 		switch (AuthType) {
 			case PLAIN: {
-				if (!sendCMD("AUTH PLAIN",334)) return false;
+				if (!sendCMD("AUTH PLAIN",334)) return SMTP_ERROR_AUTHENTICATION_FAIL;
 				char plainAuth[Username.length()+Password.length()+3];
 				plainAuth[0] = '\0';
 				strcpy(&plainAuth[1], Username.c_str());
 				strcpy(&plainAuth[2+Username.length()], Password.c_str());
 				const char* pA = (const char*)&plainAuth;
 				base64_encode(buf, pA, Username.length()+Password.length()+2);
-				if (!sendCMD(buf,235)) return false;
+				if (!sendCMD(buf,235)) return SMTP_ERROR_AUTHENTICATION_FAIL;
 				break;
 			}
+
 			case LOGIN: {
-				if (!sendCMD("AUTH LOGIN",334)) return false;
+				if (!sendCMD("AUTH LOGIN",334)) return SMTP_ERROR_AUTHENTICATION_FAIL;
 				base64_encode(buf, Username.c_str(), Username.length());
-				if (!sendCMD(buf,334)) return false;
+				if (!sendCMD(buf,334)) return SMTP_ERROR_AUTHENTICATION_FAIL;
 				base64_encode(buf, Password.c_str(), Password.length());
-				if (!sendCMD(buf,235)) return false;
+				if (!sendCMD(buf,235)) return SMTP_ERROR_AUTHENTICATION_FAIL;
 				break;
 			}
-			case XOAUTH2:
-			case NTLM:
-			case CRAM_MD5: {
-				if (do_debug >= 0) {
-					Serial.println("AUTH Method currently not supported");
-				}
-				return false;
-				/*
-				//CRAM:
-				//implement base64_decode and hmac
-				if (!sendCMD("AUTH CRAM-MD5",334)) return false;
-				String challenge = base64_decode(last_reply.substring(4));
-				String md5resp = Username+" "+hmac($challenge, Password);
-				if (!sendCMD(md5resp.c_str(),235)) return false;
-				*/
-			}
+			
 		}
 	}
 	
 	sprintf(buf, "MAIL FROM:<%s>", _from);
-	if (!sendCMD(buf,250)) return false;
+	if (!sendCMD(buf,250)) return SMTP_ERROR_SENDING_FAIL;
 	
-	if (!SMTPTo(_to)) return false;
-	if (!SMTPTo(_cc)) return false;
-	if (!SMTPTo(_bcc)) return false;
+	if (!SMTPTo(_to)) return SMTP_ERROR_SENDING_FAIL;
+	if (!SMTPTo(_cc)) return SMTP_ERROR_SENDING_FAIL;
+	if (!SMTPTo(_bcc)) return SMTP_ERROR_SENDING_FAIL;
 	
-	if (!sendCMD("DATA",354)) return false;
+	if (!sendCMD("DATA",354)) return SMTP_ERROR_SENDING_FAIL;
 
-	// time_t tm = ntp->get();
+	time_t tm = ntp->get();
 	//must be separated due to pointer overload
 	// _smtp.printf("Date: %s, ",
-	// 	dayShortStr(weekday(tm))
+	// 	days[ntp->getDay()]
 	// );
+	_smtp.printf("Date: %s", asctime(gmtime(&tm)));
 	// _smtp.printf("%02d %s %04d %02d:%02d:%02d %+03d%02d\r\n",
-	// 	// day(tm),
-	// 	// monthShortStr(month(tm)),
-	// 	// year(tm),
-	// 	// hour(tm),
-	// 	// minute(tm),
-	// 	// second(tm),
-	// 	// (int)(_timezone),
-	// 	// floor(_timezone) == _timezone ? 0 : 30
+	// 	day(tm),
+	// 	monthShortStr(month(tm)),
+	// 	year(tm),
+	// 	hour(tm),
+	// 	minute(tm),
+	// 	second(tm),
+	// 	(int)(_timezone),
+	// 	floor(_timezone) == _timezone ? 0 : 30
 	// );
+
 	
-	// _smtp.printf("Message-Id: <%ld%ld@%s>\r\n", ESP.getChipId(),ESP.getCycleCount(), Host.c_str());
-	_smtp.println("X-Mailer: ESPMailer v2.0 (http://github.com/ArduinoHannover/ESPMailer)");
+	// _smtp.printf("Message-Id: <%ld%ld@%s>\r\n", ESP.getEfuseMac(),ESP.getCycleCount(), Host.c_str());
+	_smtp.println("X-Mailer: ION Sensorpod v0.2");
 	_smtp.printf("Subject: %s\r\n", Subject.c_str());
 	if (_fromName != NULL)
 		_smtp.printf("From: \"%s\" <%s>\r\n", _fromName, _from);
@@ -314,18 +322,20 @@ boolean ESPMailer::send() {
 		_smtp.println("Content-Type: multipart/mixed; boundary=\"=ESP_MAIL_PART_MFASLAGAD\"");
 		_smtp.println("This is a multipart message in MIME format.");
 		_smtp.println("\r\n--=ESP_MAIL_PART_MFASLAGAD");
-		_smtp.println("Content-Type: text/plain; charset=iso-8859-1");
+		_smtp.println("Content-Type: text/plain; charset=utf-8");
 		_smtp.println("Content-Disposition: inline");
 		_smtp.println("Content-Transfer-Encoding: 8bit\r\n");
 		_smtp.println(AltBody.c_str());
 		_smtp.println("\r\n--=ESP_MAIL_PART_MFASLAGAD");
 		_smtp.println("Content-Disposition: inline");
 	}
+	_smtp.println("MIME-Version: 1.0");
 	_smtp.printf("Content-Type: %s\r\n",html?"text/html":"text/plain");
 	_smtp.println("Content-Transfer-Encoding: 8bit\r\n");
 	_smtp.println(Body.c_str());
 	if (AltBody.length() && html) _smtp.println("\r\n--=ESP_MAIL_PART_MFASLAGAD--");
 	_smtp.println();
-	if (!sendCMD(".",250)) return false;
-	if (!sendCMD("QUIT",221)) return false;
+	if (!sendCMD(".",250)) return SMTP_ERROR_SENDING_FAIL;
+	if (!sendCMD("QUIT",221)) return SMTP_ERROR_SENDING_FAIL;
+	return SMTP_ERROR_OK;
 }
