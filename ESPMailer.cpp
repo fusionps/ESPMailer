@@ -2,13 +2,28 @@
 #include <time.h>
 
 const char *days[7] = {
-	"Sunday",
-	"Monday",
-	"Tuesday",
-	"Wednesday",
-	"Thursday",
-	"Friday",
-	"Saturday"
+	"Sun",
+	"Mon",
+	"Tue",
+	"Wed",
+	"Thu",
+	"Fri",
+	"Sat"
+};
+
+const char *months[12] = {
+	"Jan",
+	"Feb",
+	"Mar",
+	"Apr",
+	"May",
+	"Jun",
+	"Jul",
+	"Aug",
+	"Sep",
+	"Oct",
+	"Nov",
+	"Dec"
 };
 
 ESPMailer::ESPMailer() {
@@ -284,11 +299,13 @@ SMTP_ERROR ESPMailer::send() {
 	if (!sendCMD("DATA",354)) return SMTP_ERROR_SENDING_FAIL;
 
 	time_t tm = ntp->get();
+	struct tm* time = localtime(&tm);
 	//must be separated due to pointer overload
 	// _smtp.printf("Date: %s, ",
 	// 	days[ntp->getDay()]
 	// );
-	_smtp.printf("Date: %s", asctime(gmtime(&tm)));
+	_smtp.printf("Date: %s, %d %s %d %02d:%02d:%02d +0000\r\n", days[time->tm_wday], time->tm_mday, months[time->tm_mon], 1900 + time->tm_year, time->tm_hour, time->tm_min, time->tm_sec);
+	// Date: Wed, 23 Jul 2003 22:35:49 +0900
 	// _smtp.printf("%02d %s %04d %02d:%02d:%02d %+03d%02d\r\n",
 	// 	day(tm),
 	// 	monthShortStr(month(tm)),
