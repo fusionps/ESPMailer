@@ -2,7 +2,7 @@
 #include <WiFi.h>
 // #include <Time.h>
 #include <NTPClient.h>
-#include <Ethernet2.h>
+#include <ETH.h>
 // #include <NTP.h>
 // #ifndef NTP_H
 // #error "You haven't installed the ESP-NTP Library. It can be downloaded from http://github.com/ArduinoHannover/NTP"
@@ -38,7 +38,7 @@ class ESPMailer {
 		const char* _b64_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 		const char* _delim = "\n";
 		
-		EthernetClient _smtp;
+		WiFiClient _smtp;
 		
 		char* _from = NULL;
 		char* _fromName = NULL;
